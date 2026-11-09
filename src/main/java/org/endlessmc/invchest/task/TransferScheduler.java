@@ -1,7 +1,7 @@
-package cn.craftime.invchest.task;
+package org.endlessmc.invchest.task;
 
-import cn.craftime.invchest.InvChest;
-import cn.craftime.invchest.storage.BoundContainer;
+import org.endlessmc.invchest.InvChest;
+import org.endlessmc.invchest.storage.BoundContainer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.block.BlockState;
@@ -53,19 +53,15 @@ public class TransferScheduler {
             for (BoundContainer bc : list) {
                 if (bc.paused) continue;
                 Location loc = bc.toLocation();
-                
-                // If chunk is not loaded, we cannot safely access block
                 if (loc == null || !loc.getWorld().isChunkLoaded(loc.getBlockX() >> 4, loc.getBlockZ() >> 4)) {
-                    // Skip if chunk unloaded
                     continue;
                 }
-                
                 if (!loc.getBlock().getType().name().equals(bc.type)) {
+                    plugin.store().unbind(uid, bc);
+                    plugin.store().save();
                     if (bc.chunkRange >= 0 && plugin.chunkLoader().isSupported()) {
                         plugin.chunkLoader().release(loc, bc.chunkRange);
                     }
-                    plugin.store().unbind(uid, bc);
-                    plugin.store().save();
                     p.sendMessage(color(plugin.lang().get(p, "prefix", null) + plugin.lang().get(p, "container.missing.auto_unbound", null)));
                     continue;
                 }
@@ -89,36 +85,50 @@ public class TransferScheduler {
     }
 
     private int transfer(Player p, Inventory source, String mode, int maxItems) {
+        boolean all = "all".equals(mode);
         int moved = 0;
-        if (mode.equals("all")) {
-            ItemStack[] items = source.getContents();
-            source.clear();
-            for (ItemStack it : items) {
-                if (it == null) continue;
-                if (moved >= maxItems) {
-                    p.getWorld().dropItemNaturally(p.getLocation(), it);
-                    continue;
-                }
-                Map<Integer, ItemStack> left = p.getInventory().addItem(it);
-                if (!left.isEmpty()) {
-                    for (ItemStack rem : left.values()) {
-                        p.getWorld().dropItemNaturally(p.getLocation(), rem);
-                    }
-                }
-                moved += it.getAmount();
-            }
-            return moved;
-        }
-        for (int i = 0; i < source.getSize(); i++) {
+        int processed = 0;
+        for (int i = 0; i < source.getSize() && processed < maxItems; i++) {
             ItemStack it = source.getItem(i);
             if (it == null) continue;
-            if (moved + it.getAmount() > maxItems) break;
-            Map<Integer, ItemStack> left = p.getInventory().addItem(it.clone());
-            if (!left.isEmpty()) {
+
+            int amount = Math.min(it.getAmount(), maxItems - processed);
+            ItemStack attempt = it.clone();
+            attempt.setAmount(amount);
+            Map<Integer, ItemStack> left = p.getInventory().addItem(attempt);
+            int leftover = 0;
+            for (ItemStack rem : left.values()) {
+                leftover += rem.getAmount();
+            }
+            int transferred = amount - leftover;
+
+            // all 模式：背包放不下的部分直接掉落在玩家位置
+            if (all && leftover > 0) {
+                for (ItemStack rem : left.values()) {
+                    p.getWorld().dropItemNaturally(p.getLocation(), rem);
+                }
+            }
+
+            // try 模式：背包完全无法接收当前物品时停止
+            if (!all && transferred == 0) {
                 break;
             }
-            source.setItem(i, null);
-            moved += it.getAmount();
+
+            int sourceRemaining = it.getAmount() - amount;
+            if (sourceRemaining <= 0) {
+                source.setItem(i, null);
+            } else {
+                ItemStack updated = it.clone();
+                updated.setAmount(sourceRemaining);
+                source.setItem(i, updated);
+            }
+
+            moved += transferred;
+            processed += amount;
+
+            if (!all && leftover > 0) {
+                break;
+            }
         }
         return moved;
     }

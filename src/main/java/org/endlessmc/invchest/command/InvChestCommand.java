@@ -1,10 +1,10 @@
-package cn.craftime.invchest.command;
+package org.endlessmc.invchest.command;
 
-import cn.craftime.invchest.InvChest;
-import cn.craftime.invchest.storage.BoundContainer;
+import org.endlessmc.invchest.InvChest;
+import org.endlessmc.invchest.storage.BoundContainer;
+import org.endlessmc.invchest.util.ContainerTypes;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
@@ -31,7 +31,7 @@ public class InvChestCommand implements TabExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage(color(plugin.lang().get(null, "prefix", null) + "/invchest <bind|unbind|list|start|stop|abind|aunbind|alist|astart|astop|reload>"));
+            sender.sendMessage(color(plugin.lang().get(null, "prefix", null) + "/invchest <bind|unbind|list|lock|start|stop|abind|aunbind|alist|astart|astop|reload>"));
             return true;
         }
         String sub = args[0].toLowerCase();
@@ -41,6 +41,8 @@ public class InvChestCommand implements TabExecutor {
             return handleUnbind(sender, args);
         } else if (sub.equals("list")) {
             return handleList(sender, args);
+        } else if (sub.equals("lock")) {
+            return handleLock(sender, args);
         } else if (sub.equals("start")) {
             return handleStartStop(sender, args, false);
         } else if (sub.equals("stop")) {
@@ -187,11 +189,11 @@ public class InvChestCommand implements TabExecutor {
                 }
             }
             if (target != null) {
+                plugin.store().unbind(p.getUniqueId(), target);
+                plugin.store().save();
                 if (target.chunkRange >= 0 && plugin.chunkLoader().isSupported()) {
                     plugin.chunkLoader().release(target.toLocation(), target.chunkRange);
                 }
-                plugin.store().unbind(p.getUniqueId(), target);
-                plugin.store().save();
                 p.sendMessage(color(plugin.lang().get(p, "prefix", null) + plugin.lang().get(p, "unbind.success", null)));
                 return true;
             }
@@ -206,13 +208,37 @@ public class InvChestCommand implements TabExecutor {
             return true;
         }
 
+        plugin.store().unbindByName(p.getUniqueId(), name);
+        plugin.store().save();
         if (bc.chunkRange >= 0 && plugin.chunkLoader().isSupported()) {
             plugin.chunkLoader().release(bc.toLocation(), bc.chunkRange);
         }
-
-        plugin.store().unbindByName(p.getUniqueId(), name);
-        plugin.store().save();
         p.sendMessage(color(plugin.lang().get(p, "prefix", null) + plugin.lang().get(p, "unbind.success", null)));
+        return true;
+    }
+
+    // /ic lock <name> <true|false>
+    private boolean handleLock(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(color(plugin.lang().get(null, "prefix", null) + "Console not supported."));
+            return true;
+        }
+        Player p = (Player) sender;
+        if (!p.hasPermission("invchest.lock")) {
+            p.sendMessage(color(plugin.lang().get(p, "prefix", null) + plugin.lang().get(p, "no.permission", null)));
+            return true;
+        }
+        if (args.length != 3 || (!args[2].equalsIgnoreCase("true") && !args[2].equalsIgnoreCase("false"))) {
+            p.sendMessage(color(plugin.lang().get(p, "prefix", null) + "/ic lock <绑定名> <true|false>"));
+            return true;
+        }
+        if (!plugin.store().setLocked(p.getUniqueId(), args[1], Boolean.parseBoolean(args[2]))) {
+            p.sendMessage(color(plugin.lang().get(p, "prefix", null) + plugin.lang().get(p, "unbind.not_found", null)));
+            return true;
+        }
+        plugin.store().save();
+        p.sendMessage(color(plugin.lang().get(p, "prefix", null) + plugin.lang().get(p, "lock.success", null)
+                .replace("{name}", args[1]).replace("{locked}", args[2])));
         return true;
     }
 
@@ -376,13 +402,13 @@ public class InvChestCommand implements TabExecutor {
         
         if (args.length < 3) {
             List<BoundContainer> list = plugin.store().getBounds(uid);
+            plugin.store().unbindAll(uid);
+            plugin.store().save();
             for (BoundContainer bc : list) {
                 if (bc.chunkRange >= 0 && plugin.chunkLoader().isSupported()) {
                     plugin.chunkLoader().release(bc.toLocation(), bc.chunkRange);
                 }
             }
-            plugin.store().unbindAll(uid);
-            plugin.store().save();
             sender.sendMessage(color(plugin.lang().get(null, "prefix", null) + plugin.lang().get(null, "admin.unbind.success", null).replace("{player}", args[1])));
             return true;
         }
@@ -394,11 +420,11 @@ public class InvChestCommand implements TabExecutor {
             return true;
         }
         
+        plugin.store().unbindByName(uid, name);
+        plugin.store().save();
         if (bc.chunkRange >= 0 && plugin.chunkLoader().isSupported()) {
             plugin.chunkLoader().release(bc.toLocation(), bc.chunkRange);
         }
-        plugin.store().unbindByName(uid, name);
-        plugin.store().save();
         sender.sendMessage(color(plugin.lang().get(null, "prefix", null) + plugin.lang().get(null, "admin.unbind.success", null).replace("{player}", args[1])));
         return true;
     }
@@ -518,18 +544,7 @@ public class InvChestCommand implements TabExecutor {
             } catch (Exception ignored2) {}
         }
         if (b == null) return null;
-        Material type = b.getType();
-        String name = type.name();
-        if (name.equals("CHEST") || name.equals("BARREL") || name.contains("BARREL") || isShulkerBox(name)) {
-            return b;
-        }
-        return null;
-    }
-
-    private boolean isShulkerBox(String name) {
-        if (name == null) return false;
-        if (name.equals("SHULKER_BOX")) return true;
-        return name.endsWith("_SHULKER_BOX");
+        return ContainerTypes.isSupported(b.getType().name()) ? b : null;
     }
 
     private String color(String s) {
@@ -543,6 +558,7 @@ public class InvChestCommand implements TabExecutor {
             list.add("bind");
             list.add("unbind");
             list.add("list");
+            list.add("lock");
             list.add("start");
             list.add("stop");
             list.add("abind");
@@ -552,7 +568,7 @@ public class InvChestCommand implements TabExecutor {
             list.add("astop");
             list.add("reload");
         } else if (args.length == 2) {
-             if (args[0].equalsIgnoreCase("unbind") || args[0].equalsIgnoreCase("start") || args[0].equalsIgnoreCase("stop")) {
+             if (args[0].equalsIgnoreCase("unbind") || args[0].equalsIgnoreCase("lock") || args[0].equalsIgnoreCase("start") || args[0].equalsIgnoreCase("stop")) {
                  if (sender instanceof Player) {
                      List<BoundContainer> bounds = plugin.store().getBounds(((Player)sender).getUniqueId());
                      for (BoundContainer bc : bounds) list.add(bc.name);
@@ -561,14 +577,15 @@ public class InvChestCommand implements TabExecutor {
                  list.add("@all");
                  for (Player p : Bukkit.getOnlinePlayers()) list.add(p.getName());
              }
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("lock")) {
+            list.add("true");
+            list.add("false");
         }
         return list;
     }
 
     private boolean isValidName(String name) {
-        if (name == null) return false;
-        if (!NAME_PATTERN.matcher(name).matches()) return false;
-        return name.codePointCount(0, name.length()) <= 16;
+        return name != null && NAME_PATTERN.matcher(name).matches();
     }
 
     private ResolvedTarget resolveTarget(String id) {

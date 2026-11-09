@@ -2,23 +2,17 @@
 # Transfer interval in seconds
 transfer-interval: 30
 
-# 传输模式：all（清空容器并尽量放入背包，剩余掉落）或 try（尽量移入，遇到装不下即停止，剩余保留）
+# 传输模式：all（清空容器，优先放入背包，仅剩余部分掉落）或 try（仅转移背包可容纳的部分，剩余保留）
 # Transfer mode: "all" or "try"
 transfer-mode: "all"
 
-# 单次传输的物品数量上限（按堆叠数量累加）
-# Max items per transfer (sum of stack sizes)
+# 单次传输的物品数量上限（按堆叠数量累加，all/try 模式均生效）
+# Max items per transfer (sum of stack sizes, applies to both all and try modes)
 max-items-per-transfer: 64
-
-# 红石相关功能已移除
 
 # 语言设置：如 zh_cn / en_us 或 auto_en_us（控制台使用 en_us，玩家按客户端语言自动匹配）
 # Language: e.g., zh_cn / en_us, or auto_en_us (console uses en_us, players auto-match)
 lang: "auto_en_us"
-
-# 调试模式（输出更详细日志）
-# Debug mode (verbose logging)
-debug-mode: false
 
 # 绑定相关设置
 bind:
@@ -43,20 +37,12 @@ chunk-loading:
   # 允许的最大加载范围
   # Max chunk loading range
   max-range: 16
-  
-  # 自动卸载延迟（秒）（预留，暂未实现复杂逻辑，目前仅跟随玩家在线状态）
-  # Auto unload delay in seconds (reserved)
-  auto-unload-delay: 300
 
 # 界面设置
 ui:
   # 列表每页显示条数
   # Items per page in list command
   list-items-per-page: 8
-  
-  # 是否显示最后一次传输时间（暂未实现）
-  # Show last transfer time (reserved)
-  show-last-transfer: true
 
 # 是否发送“传送成功”消息；仅在有传输发生时发送；默认不发送
 # Send transfer success message; only when items actually moved; default false

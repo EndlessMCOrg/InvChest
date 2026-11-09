@@ -1,6 +1,6 @@
-package cn.craftime.invchest.listener;
+package org.endlessmc.invchest.listener;
 
-import cn.craftime.invchest.InvChest;
+import org.endlessmc.invchest.InvChest;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;

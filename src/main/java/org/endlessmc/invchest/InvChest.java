@@ -1,13 +1,13 @@
-package cn.craftime.invchest;
+package org.endlessmc.invchest;
 
-import cn.craftime.invchest.command.InvChestCommand;
-import cn.craftime.invchest.config.ConfigManager;
-import cn.craftime.invchest.lang.LangManager;
-import cn.craftime.invchest.listener.ContainerProtectionListener;
-import cn.craftime.invchest.listener.PlayerSessionListener;
-import cn.craftime.invchest.storage.BindingStore;
-import cn.craftime.invchest.task.TransferScheduler;
-import cn.craftime.invchest.util.ChunkLoader;
+import org.endlessmc.invchest.command.InvChestCommand;
+import org.endlessmc.invchest.config.ConfigManager;
+import org.endlessmc.invchest.lang.LangManager;
+import org.endlessmc.invchest.listener.ContainerProtectionListener;
+import org.endlessmc.invchest.listener.PlayerSessionListener;
+import org.endlessmc.invchest.storage.BindingStore;
+import org.endlessmc.invchest.task.TransferScheduler;
+import org.endlessmc.invchest.util.ChunkLoader;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class InvChest extends JavaPlugin {
@@ -82,6 +82,7 @@ public class InvChest extends JavaPlugin {
             this.transferScheduler.start(configManager.getTransferIntervalSeconds());
         }
         if (this.chunkLoader != null) {
+            this.chunkLoader.unloadAll();
             this.chunkLoader.refreshAll();
         }
     }

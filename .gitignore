@@ -3,6 +3,7 @@
 
 # Log file
 *.log
+logs/
 
 # BlueJ files
 *.ctxt
@@ -22,25 +23,62 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+*.hprof
 
 # Maven build output
 target/
+build/
+out/
+bin/
 
 # Maven shade plugin
 dependency-reduced-pom.xml
 
+# Gradle
+.gradle/
+
 # IntelliJ IDEA
 *.iml
 .idea/
+*.ipr
+*.iws
 
 # Eclipse
 .classpath
 .project
 .settings/
+.metadata/
+.factorypath
+.apt_generated/
+*.launch
+
+# NetBeans
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
 
 # VS Code
 .vscode/
 
+# Local runtime / development servers
+run/
+server/
+.server/
+
+# Temporary and patch files
+*.tmp
+*.bak
+*.orig
+*.rej
+*.swp
+*~
+
+# Local environment
+.env
+*.local
+
 # OS files
 .DS_Store
 Thumbs.db
+desktop.ini

@@ -1,4 +1,4 @@
-package cn.craftime.invchest.config;
+package org.endlessmc.invchest.config;
 
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -29,20 +29,15 @@ public class ConfigManager {
         return config.getString("lang", "auto_en_us");
     }
 
-    public boolean isDebugMode() {
-        return config.getBoolean("debug-mode", false);
-    }
-
     public int getMaxBoundPerPlayer() {
-        int v = config.getInt("bind.max-per-player", 10);
-        if (v < 0) v = 0; // Legacy 0 means unlimited? Config comment says 0 means unlimited for legacy setting, but new setting default is 10.
-        // Let's check if legacy key exists first? No, user updated config structure.
-        // But if user has old config file, they might use old key.
-        // Let's prioritize new key, fallback to old key if present.
-        if (config.contains("max-bound-containers-per-player") && !config.contains("bind.max-per-player")) {
-            v = config.getInt("max-bound-containers-per-player", 0);
+        if (config.isSet("bind.max-per-player")) {
+            return Math.max(0, config.getInt("bind.max-per-player", 10));
         }
-        return v;
+        // 兼容旧版配置键
+        if (config.isSet("max-bound-containers-per-player")) {
+            return Math.max(0, config.getInt("max-bound-containers-per-player", 0));
+        }
+        return 10;
     }
 
     public int getDefaultChunkRange() {

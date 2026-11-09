@@ -1,6 +1,8 @@
-package cn.craftime.invchest.listener;
+package org.endlessmc.invchest.listener;
 
-import cn.craftime.invchest.InvChest;
+import org.endlessmc.invchest.InvChest;
+import org.endlessmc.invchest.storage.BoundContainer;
+import org.endlessmc.invchest.util.ContainerTypes;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
@@ -17,6 +19,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,44 +34,43 @@ public class ContainerProtectionListener implements Listener {
     public void onInventoryOpen(InventoryOpenEvent event) {
         Inventory inv = event.getInventory();
         InventoryHolder holder = inv.getHolder();
+        if (!(event.getPlayer() instanceof Player)) return;
+        Player player = (Player) event.getPlayer();
         if (holder instanceof DoubleChest) {
             DoubleChest dc = (DoubleChest) holder;
-            InventoryHolder l = dc.getLeftSide();
-            InventoryHolder r = dc.getRightSide();
-            Location ll = holderLocation(l);
-            Location rl = holderLocation(r);
-            UUID owner = boundOwner(ll);
-            if (owner == null) owner = boundOwner(rl);
-            if (owner != null) {
-                event.setCancelled(true);
-                Player p = (Player) event.getPlayer();
-                sendProtectedMessage(p, owner);
-            }
+            BoundContainer container = boundContainer(holderLocation(dc.getLeftSide()));
+            if (container == null) container = boundContainer(holderLocation(dc.getRightSide()));
+            protectOpen(event, player, container);
             return;
         }
-        Location loc = holderLocation(holder);
-        UUID owner = boundOwner(loc);
-        if (owner != null) {
-            event.setCancelled(true);
-            Player p = (Player) event.getPlayer();
-            sendProtectedMessage(p, owner);
-        }
+        protectOpen(event, player, boundContainer(holderLocation(holder)));
+    }
+
+    private void protectOpen(InventoryOpenEvent event, Player player, BoundContainer container) {
+        if (container == null || !container.isLocked()) return;
+        Location loc = container.toLocation();
+        if (loc == null) return;
+        UUID owner = plugin.store().ownerOf(loc);
+        if (owner != null && owner.equals(player.getUniqueId())) return;
+        event.setCancelled(true);
+        sendProtectedMessage(player, owner);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Block b = event.getBlock();
         String name = b.getType().name();
-        if (!isSupportedContainer(name)) return;
+        if (!ContainerTypes.isSupported(name)) return;
         Location targetLoc = boundLocation(b);
         if (targetLoc == null) return;
         UUID owner = plugin.store().ownerOf(targetLoc);
         if (owner == null) return;
         Player p = event.getPlayer();
         if (p.getUniqueId().equals(owner)) {
-            releaseChunk(targetLoc, owner);
+            BoundContainer bound = plugin.store().getBoundAt(targetLoc);
             plugin.store().unbindByLocation(targetLoc);
             plugin.store().save();
+            releaseChunk(bound, targetLoc);
             p.sendMessage(color(plugin.lang().get(p, "prefix", null) + plugin.lang().get(p, "unbind.success", null)));
             return;
         }
@@ -79,17 +81,8 @@ public class ContainerProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryMove(InventoryMoveItemEvent event) {
         Inventory src = event.getSource();
-        Inventory dst = event.getDestination();
-        InventoryHolder sh = src.getHolder();
-        InventoryHolder dh = dst.getHolder();
-        Location sl = holderLocation(sh);
-        Location dl = holderLocation(dh);
-        if (isBound(sl)) {
+        if (isBoundHolder(src.getHolder())) {
             event.setCancelled(true);
-            return;
-        }
-        if (isBound(dl)) {
-            return;
         }
     }
 
@@ -115,21 +108,18 @@ public class ContainerProtectionListener implements Listener {
         return plugin.store().ownerOf(loc) != null;
     }
 
-    private boolean isSupportedContainer(String name) {
-        if ("CHEST".equals(name)) return true;
-        if (name.equals("BARREL") || name.contains("BARREL")) return true;
-        return isShulkerBox(name);
-    }
-
-    private boolean isShulkerBox(String name) {
-        if (name == null) return false;
-        if (name.equals("SHULKER_BOX")) return true;
-        return name.endsWith("_SHULKER_BOX");
+    private boolean isBoundHolder(InventoryHolder holder) {
+        if (holder instanceof DoubleChest) {
+            DoubleChest dc = (DoubleChest) holder;
+            if (isBound(holderLocation(dc.getLeftSide()))) return true;
+            return isBound(holderLocation(dc.getRightSide()));
+        }
+        return isBound(holderLocation(holder));
     }
 
     private Location neighborBoundLocation(Block b) {
         String name = b.getType().name();
-        if (!"CHEST".equals(name)) return null;
+        if (!ContainerTypes.isDoubleChest(name)) return null;
         Block n1 = b.getRelative(1, 0, 0);
         Block n2 = b.getRelative(-1, 0, 0);
         Block n3 = b.getRelative(0, 0, 1);
@@ -152,9 +142,9 @@ public class ContainerProtectionListener implements Listener {
         return neighborBoundLocation(b);
     }
 
-    private UUID boundOwner(Location loc) {
+    private BoundContainer boundContainer(Location loc) {
         if (loc == null) return null;
-        return plugin.store().ownerOf(loc);
+        return plugin.store().getBoundAt(loc);
     }
 
     private void sendProtectedMessage(Player p, UUID owner) {
@@ -179,29 +169,23 @@ public class ContainerProtectionListener implements Listener {
         if (blocks == null || blocks.isEmpty()) return;
         for (Block b : new ArrayList<Block>(blocks)) {
             String name = b.getType().name();
-            if (!isSupportedContainer(name)) continue;
+            if (!ContainerTypes.isSupported(name)) continue;
             Location targetLoc = boundLocation(b);
             if (targetLoc == null) continue;
-            UUID owner = plugin.store().ownerOf(targetLoc);
-            if (owner == null) continue;
-            releaseChunk(targetLoc, owner);
+            BoundContainer bound = plugin.store().getBoundAt(targetLoc);
+            if (bound == null) continue;
             plugin.store().unbindByLocation(targetLoc);
+            releaseChunk(bound, targetLoc);
         }
         plugin.store().save();
     }
 
-    private void releaseChunk(Location loc, UUID owner) {
-        if (loc == null) return;
-        List<BoundContainer> list = plugin.store().getBounds(owner);
-        String key = new BoundContainer(loc, loc.getBlock().getType().name(), null, 0).key();
-        for (BoundContainer bc : list) {
-            if (bc.key().equals(key)) {
-                if (bc.chunkRange >= 0 && plugin.chunkLoader().isSupported()) {
-                    plugin.chunkLoader().release(loc, bc.chunkRange);
-                }
-                return;
-            }
-        }
+    private void releaseChunk(BoundContainer bound, Location loc) {
+        if (bound == null) return;
+        if (bound.chunkRange < 0 || !plugin.chunkLoader().isSupported()) return;
+        Location releaseLoc = loc != null ? loc : bound.toLocation();
+        if (releaseLoc == null) return;
+        plugin.chunkLoader().release(releaseLoc, bound.chunkRange);
     }
 
     private String color(String s) {

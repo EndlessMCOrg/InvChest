@@ -1,4 +1,4 @@
-package cn.craftime.invchest.storage;
+package org.endlessmc.invchest.storage;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -15,6 +15,7 @@ public class BoundContainer {
     public String name;
     public int chunkRange;
     public boolean paused;
+    public Boolean locked;
 
     public BoundContainer() {}
 
@@ -27,6 +28,11 @@ public class BoundContainer {
         this.name = name;
         this.chunkRange = chunkRange;
         this.paused = false;
+        this.locked = true;
+    }
+
+    public boolean isLocked() {
+        return locked == null || locked;
     }
 
     public Location toLocation() {

@@ -4,21 +4,46 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>cn.craftime</groupId>
+  <groupId>org.endlessmc</groupId>
   <artifactId>InvChest</artifactId>
-  <version>1.7-SNAPSHOT</version>
+  <version>${revision}</version>
   <packaging>jar</packaging>
 
   <name>InvChest</name>
+  <description>让容器里的物品自己流进玩家的口袋。</description>
+  <url>https://github.com/EndlessMCOrg/InvChest/</url>
 
-    <description>让容器里的物品自己流进玩家的口袋。</description>
-    <properties>
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>OutHimic</name>
+    </developer>
+    <developer>
+      <name>EndlessMCOrg</name>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/EndlessMCOrg/InvChest.git</connection>
+    <developerConnection>scm:git:https://github.com/EndlessMCOrg/InvChest.git</developerConnection>
+    <url>https://github.com/EndlessMCOrg/InvChest/</url>
+  </scm>
+
+  <properties>
     <java.version>1.8</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- 默认版本号；构建时可通过 -Drevision=x.y.z 覆盖 -->
+    <revision>1.9</revision>
   </properties>
-    <url>github.com/TTOCServer/</url>
 
-    <build>
+  <build>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -53,26 +78,10 @@
 
   <repositories>
       <repository>
-          <id>xget-maven-central</id>
-          <name>Xget Maven Central</name>
-          <url>https://xget.xi-xu.me/maven/maven2</url>
-      </repository>
-      <repository>
           <id>papermc-repo</id>
           <url>https://repo.papermc.io/repository/maven-public/</url>
       </repository>
-      <repository>
-          <id>sonatype</id>
-          <url>https://oss.sonatype.org/content/groups/public/</url>
-      </repository>
   </repositories>
-  <pluginRepositories>
-      <pluginRepository>
-          <id>xget-maven-central</id>
-          <name>Xget Maven Central</name>
-          <url>https://xget.xi-xu.me/maven/maven2</url>
-      </pluginRepository>
-  </pluginRepositories>
 
   <dependencies>
       <dependency>

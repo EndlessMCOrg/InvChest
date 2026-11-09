@@ -1,14 +1,19 @@
-package cn.craftime.invchest.util;
+package org.endlessmc.invchest.util;
 
-import cn.craftime.invchest.InvChest;
-import cn.craftime.invchest.storage.BoundContainer;
+import org.endlessmc.invchest.InvChest;
+import org.endlessmc.invchest.storage.BoundContainer;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
+
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
 
 /**
  * Manages chunk force-loading logic.
@@ -19,6 +24,7 @@ public class ChunkLoader {
     private final boolean supported;
     private Method setForceLoadedMethod;
     private Method isForceLoadedMethod;
+    private final Map<String, ChunkRef> forcedChunks = new HashMap<>();
 
     public ChunkLoader(InvChest plugin) {
         this.plugin = plugin;
@@ -39,12 +45,14 @@ public class ChunkLoader {
         return supported;
     }
 
-    private void setForceLoaded(Chunk chunk, boolean force) {
-        if (!supported || setForceLoadedMethod == null) return;
+    private boolean setForceLoaded(Chunk chunk, boolean force) {
+        if (!supported || setForceLoadedMethod == null) return false;
         try {
             setForceLoadedMethod.invoke(chunk, force);
+            return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            plugin.getLogger().log(Level.WARNING, "Failed to update chunk force-load state", e);
+            return false;
         }
     }
 
@@ -53,8 +61,29 @@ public class ChunkLoader {
         try {
             return (boolean) isForceLoadedMethod.invoke(chunk);
         } catch (Exception e) {
-            e.printStackTrace();
+            plugin.getLogger().log(Level.WARNING, "Failed to read chunk force-load state", e);
             return false;
+        }
+    }
+
+    private String chunkKey(World world, int cx, int cz) {
+        String name = world.getName();
+        return name.length() + ":" + name + ":" + cx + ":" + cz;
+    }
+
+    private void applyForceLoaded(World world, int cx, int cz, boolean force) {
+        String key = chunkKey(world, cx, cz);
+        Chunk chunk = world.getChunkAt(cx, cz);
+        if (force) {
+            boolean alreadyLoaded = isForceLoaded(chunk);
+            if (setForceLoaded(chunk, true) && !alreadyLoaded) {
+                forcedChunks.put(key, new ChunkRef(world, cx, cz));
+            }
+        } else {
+            if (!forcedChunks.containsKey(key)) return;
+            if (setForceLoaded(chunk, false)) {
+                forcedChunks.remove(key);
+            }
         }
     }
 
@@ -66,10 +95,11 @@ public class ChunkLoader {
      * @return true if applied, false if not supported or range < 0
      */
     public boolean keepLoaded(Location loc, int range) {
-        if (!supported || range < 0) return false;
+        if (loc == null || !supported || range < 0) return false;
         if (!plugin.config().isChunkLoadingEnabled()) return false;
-        
+
         World w = loc.getWorld();
+        if (w == null) return false;
         int cx = loc.getBlockX() >> 4;
         int cz = loc.getBlockZ() >> 4;
 
@@ -78,7 +108,7 @@ public class ChunkLoader {
 
         for (int x = cx - range; x <= cx + range; x++) {
             for (int z = cz - range; z <= cz + range; z++) {
-                setForceLoaded(w.getChunkAt(x, z), true);
+                applyForceLoaded(w, x, z, true);
             }
         }
         return true;
@@ -90,9 +120,20 @@ public class ChunkLoader {
      * @param range Radius
      */
     public void release(Location loc, int range) {
-        if (!supported || range < 0) return;
-        
+        release(loc, range, null);
+    }
+
+    /**
+     * Releases force load for chunks around the location within range.
+     * @param loc Center location
+     * @param range Radius
+     * @param excludePlayer player whose bindings should be ignored (e.g. on quit)
+     */
+    public void release(Location loc, int range, UUID excludePlayer) {
+        if (loc == null || !supported || range < 0) return;
+
         World w = loc.getWorld();
+        if (w == null) return;
         int cx = loc.getBlockX() >> 4;
         int cz = loc.getBlockZ() >> 4;
 
@@ -101,27 +142,33 @@ public class ChunkLoader {
 
         for (int x = cx - range; x <= cx + range; x++) {
             for (int z = cz - range; z <= cz + range; z++) {
-                if (shouldKeepLoaded(w, x, z)) {
+                if (!forcedChunks.containsKey(chunkKey(w, x, z))) {
                     continue;
                 }
-                setForceLoaded(w.getChunkAt(x, z), false);
+                if (shouldKeepLoaded(w, x, z, excludePlayer)) {
+                    continue;
+                }
+                applyForceLoaded(w, x, z, false);
             }
         }
     }
-    
-    private boolean shouldKeepLoaded(World w, int cx, int cz) {
+
+    private boolean shouldKeepLoaded(World w, int cx, int cz, UUID excludePlayer) {
         // Check all online players' bindings
         for (org.bukkit.entity.Player p : Bukkit.getOnlinePlayers()) {
+            if (excludePlayer != null && excludePlayer.equals(p.getUniqueId())) {
+                continue;
+            }
             List<BoundContainer> bounds = plugin.store().getBounds(p.getUniqueId());
             for (BoundContainer bc : bounds) {
                 if (bc.chunkRange < 0) continue;
                 Location loc = bc.toLocation();
                 if (loc == null || !loc.getWorld().equals(w)) continue;
-                
+
                 int bcx = loc.getBlockX() >> 4;
                 int bcz = loc.getBlockZ() >> 4;
                 int r = Math.min(bc.chunkRange, plugin.config().getMaxChunkRange());
-                
+
                 if (cx >= bcx - r && cx <= bcx + r && cz >= bcz - r && cz <= bcz + r) {
                     return true;
                 }
@@ -140,26 +187,35 @@ public class ChunkLoader {
             if (online) {
                 keepLoaded(loc, bc.chunkRange);
             } else {
-                release(loc, bc.chunkRange);
+                release(loc, bc.chunkRange, uuid);
             }
         }
     }
-    
+
     public void unloadAll() {
         if (!supported) return;
-        for (World w : Bukkit.getWorlds()) {
-            for (Chunk c : w.getLoadedChunks()) {
-                if (isForceLoaded(c)) {
-                    setForceLoaded(c, false);
-                }
-            }
+        for (ChunkRef ref : new ArrayList<ChunkRef>(forcedChunks.values())) {
+            setForceLoaded(ref.world.getChunkAt(ref.x, ref.z), false);
         }
+        forcedChunks.clear();
     }
-    
+
     public void refreshAll() {
         if (!supported) return;
         for (org.bukkit.entity.Player p : Bukkit.getOnlinePlayers()) {
             updatePlayer(p.getUniqueId(), true);
+        }
+    }
+
+    private static final class ChunkRef {
+        private final World world;
+        private final int x;
+        private final int z;
+
+        private ChunkRef(World world, int x, int z) {
+            this.world = world;
+            this.x = x;
+            this.z = z;
         }
     }
 }

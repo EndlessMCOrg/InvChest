@@ -1,4 +1,4 @@
-package cn.craftime.invchest.storage;
+package org.endlessmc.invchest.storage;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
 
 public class BindingStore {
     private final Plugin plugin;
@@ -53,7 +54,7 @@ public class BindingStore {
                 if (root.has("data")) {
                     Type typeList = new TypeToken<Map<String, List<BoundContainer>>>(){}.getType();
                     Map<String, List<BoundContainer>> rawList = gson.fromJson(root.get("data"), typeList);
-                    loadFromMap(rawList);
+                    loadFromMap(rawList, false);
                     return; // Loaded successfully
                 }
                 
@@ -67,7 +68,7 @@ public class BindingStore {
             Type typeList = new TypeToken<Map<String, List<BoundContainer>>>(){}.getType();
             Map<String, List<BoundContainer>> rawList = gson.fromJson(reader, typeList);
             if (rawList != null) {
-                loadFromMap(rawList);
+                loadFromMap(rawList, true);
                 return;
             }
         } catch (Exception ignored) {}
@@ -94,7 +95,7 @@ public class BindingStore {
         } catch (Exception ignored) {}
     }
 
-    private void loadFromMap(Map<String, List<BoundContainer>> rawList) {
+    private void loadFromMap(Map<String, List<BoundContainer>> rawList, boolean legacy) {
         byPlayer.clear();
         byLocationKey.clear();
         if (rawList != null) {
@@ -109,29 +110,16 @@ public class BindingStore {
                     if (bc.name == null) {
                         bc.name = "绑定" + idx; // Default name
                     }
-                    if (bc.chunkRange == 0 && !isZeroRangeExplicitlySet(bc)) {
-                         // We can't easily know if 0 was set or default. 
-                         // But if it's migration, -1 is safer default for "no chunk loading".
-                         // However, int default is 0. 
-                         // Let's assume old data implies "no chunk loading", which is -1 in new logic.
-                         // But we can't change 0 to -1 blindly if user meant 0.
-                         // Actually, old BoundContainer didn't have this field, so Gson sets it to 0.
-                         // So we should probably set it to -1 if we suspect it's migrated.
-                         // For now let's set to -1 to be safe and consistent with "default-chunk-range".
-                         bc.chunkRange = -1;
+                    if (legacy && bc.chunkRange == 0) {
+                        // 旧版数据没有 chunkRange 字段，Gson 会将其设为 0；
+                        // 迁移时按“不常加载”处理，避免误加载区块。
+                        bc.chunkRange = -1;
                     }
                     byLocationKey.put(bc.key(), uid);
                     idx++;
                 }
             }
         }
-    }
-    
-    // Helper to guess if 0 is real or default (not possible with standard Gson on int, but acceptable for migration)
-    private boolean isZeroRangeExplicitlySet(BoundContainer bc) {
-        // This is a placeholder. In reality we can't know. 
-        // We assume 0 from legacy migration means "not set" -> -1.
-        return false;
     }
 
     public void save() {
@@ -146,7 +134,9 @@ public class BindingStore {
             root.put("data", data);
             
             gson.toJson(root, writer);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save bindings", e);
+        }
     }
 
     public List<BoundContainer> getBounds(UUID player) {
@@ -261,6 +251,23 @@ public class BindingStore {
             }
         }
         return false;
+    }
+
+    public boolean setLocked(UUID player, String name, boolean locked) {
+        BoundContainer container = getBoundByName(player, name);
+        if (container == null) return false;
+        container.locked = locked;
+        return true;
+    }
+
+    public BoundContainer getBoundAt(Location loc) {
+        UUID owner = ownerOf(loc);
+        if (owner == null) return null;
+        String key = new BoundContainer(loc, loc.getBlock().getType().name(), null, 0).key();
+        for (BoundContainer bc : getBounds(owner)) {
+            if (bc.key().equals(key)) return bc;
+        }
+        return null;
     }
 
     public boolean setAllPaused(UUID player, boolean paused) {

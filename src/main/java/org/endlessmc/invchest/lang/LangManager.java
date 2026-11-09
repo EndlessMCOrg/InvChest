@@ -1,4 +1,4 @@
-package cn.craftime.invchest.lang;
+package org.endlessmc.invchest.lang;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -14,6 +14,7 @@ public class LangManager {
     private String mode;
     private String baseCode;
     private FileConfiguration baseLang;
+    private FileConfiguration fallbackLang;
 
     public LangManager(Plugin plugin) {
         this.plugin = plugin;
@@ -27,10 +28,17 @@ public class LangManager {
             this.baseCode = this.mode.toLowerCase(Locale.ROOT);
         }
         ensureDefaults();
+        this.fallbackLang = loadLangFile("en_us");
         this.baseLang = loadLangFile(this.baseCode);
         if (this.baseLang == null) {
             this.baseCode = "en_us";
-            this.baseLang = loadLangFile(this.baseCode);
+            this.baseLang = this.fallbackLang;
+        }
+        if (this.baseLang == null) {
+            this.baseLang = new YamlConfiguration();
+        }
+        if (this.fallbackLang == null) {
+            this.fallbackLang = this.baseLang;
         }
     }
 
@@ -83,7 +91,10 @@ public class LangManager {
                 }
             }
         }
-        String v = lang.getString(key, key);
+        String v = lang.getString(key);
+        if (v == null && fallbackLang != null) {
+            v = fallbackLang.getString(key);
+        }
         if (v == null) v = key;
         if (args != null) {
             for (Map.Entry<String, String> e : args.entrySet()) {
