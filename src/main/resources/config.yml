@@ -10,8 +10,8 @@ transfer-mode: "all"
 # Max items per transfer (sum of stack sizes, applies to both all and try modes)
 max-items-per-transfer: 64
 
-# 语言设置：如 zh_cn / en_us 或 auto_en_us（控制台使用 en_us，玩家按客户端语言自动匹配）
-# Language: e.g., zh_cn / en_us, or auto_en_us (console uses en_us, players auto-match)
+# 语言设置：zh_cn / zh_tw / zh_hk / en_us，或 auto_en_us（控制台使用 en_us，玩家按客户端语言自动匹配）
+# Language: zh_cn / zh_tw / zh_hk / en_us, or auto_en_us (console uses en_us, players auto-match)
 lang: "auto_en_us"
 
 # 绑定相关设置

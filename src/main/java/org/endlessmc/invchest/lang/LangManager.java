@@ -51,19 +51,6 @@ public class LangManager {
         copyIfMissing("lang/zh_cn.yml");
         copyIfMissing("lang/zh_tw.yml");
         copyIfMissing("lang/zh_hk.yml");
-        copyIfMissing("lang/en_gb.yml");
-        copyIfMissing("lang/en_au.yml");
-        copyIfMissing("lang/ja_jp.yml");
-        copyIfMissing("lang/ko_kr.yml");
-        copyIfMissing("lang/ru_ru.yml");
-        copyIfMissing("lang/kk_kz.yml");
-        copyIfMissing("lang/mn_mn.yml");
-        copyIfMissing("lang/de_de.yml");
-        copyIfMissing("lang/fr_fr.yml");
-        copyIfMissing("lang/it_it.yml");
-        copyIfMissing("lang/es_es.yml");
-        copyIfMissing("lang/pt_pt.yml");
-        copyIfMissing("lang/ar_sa.yml");
     }
 
     private void copyIfMissing(String path) {
